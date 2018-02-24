@@ -33,6 +33,8 @@ type ShapeRef struct {
 	Deprecated       bool `json:"deprecated"`
 
 	OrigShapeName string `json:"-"`
+
+	GenerateGetter bool
 }
 
 // ErrorInfo represents the error block of a shape's structure
@@ -400,16 +402,18 @@ func (ref *ShapeRef) GoTags(toplevel bool, isRequired bool) string {
 		if ref.Shape.Payload != "" {
 			tags = append(tags, ShapeTag{"payload", ref.Shape.Payload})
 		}
-		if ref.XMLNamespace.Prefix != "" {
-			tags = append(tags, ShapeTag{"xmlPrefix", ref.XMLNamespace.Prefix})
-		} else if ref.Shape.XMLNamespace.Prefix != "" {
-			tags = append(tags, ShapeTag{"xmlPrefix", ref.Shape.XMLNamespace.Prefix})
-		}
-		if ref.XMLNamespace.URI != "" {
-			tags = append(tags, ShapeTag{"xmlURI", ref.XMLNamespace.URI})
-		} else if ref.Shape.XMLNamespace.URI != "" {
-			tags = append(tags, ShapeTag{"xmlURI", ref.Shape.XMLNamespace.URI})
-		}
+	}
+
+	if ref.XMLNamespace.Prefix != "" {
+		tags = append(tags, ShapeTag{"xmlPrefix", ref.XMLNamespace.Prefix})
+	} else if ref.Shape.XMLNamespace.Prefix != "" {
+		tags = append(tags, ShapeTag{"xmlPrefix", ref.Shape.XMLNamespace.Prefix})
+	}
+
+	if ref.XMLNamespace.URI != "" {
+		tags = append(tags, ShapeTag{"xmlURI", ref.XMLNamespace.URI})
+	} else if ref.Shape.XMLNamespace.URI != "" {
+		tags = append(tags, ShapeTag{"xmlURI", ref.Shape.XMLNamespace.URI})
 	}
 
 	if ref.IdempotencyToken || ref.Shape.IdempotencyToken {
@@ -512,17 +516,6 @@ var structShapeTmpl = template.Must(template.New("StructShape").Funcs(template.F
 	"GetCrosslinkURL": GetCrosslinkURL,
 }).Parse(`
 {{ .Docstring }}
-{{ if ne $.OrigShapeName "" -}}
-{{ $crosslinkURL := GetCrosslinkURL $.API.BaseCrosslinkURL $.API.APIName $.API.Metadata.UID $.OrigShapeName -}}
-{{ if ne $crosslinkURL "" -}} 
-// Please also see {{ $crosslinkURL }}
-{{ end -}}
-{{ else -}}
-{{ $crosslinkURL := GetCrosslinkURL $.API.BaseCrosslinkURL $.API.APIName $.API.Metadata.UID $.ShapeName -}}
-{{ if ne $crosslinkURL "" -}} 
-// Please also see {{ $crosslinkURL }}
-{{ end -}}
-{{ end -}}
 {{ $context := . -}}
 type {{ .ShapeName }} struct {
 	_ struct{} {{ .GoTags true false }}
@@ -577,6 +570,19 @@ func (s *{{ $builderShapeName }}) Set{{ $name }}(v {{ $context.GoStructValueType
 	{{ end -}}
 	return s
 }
+
+{{ if $elem.GenerateGetter -}}
+func (s *{{ $builderShapeName }}) get{{ $name }}() (v {{ $context.GoStructValueType $name $elem }}) {
+	{{ if $elem.UseIndirection -}}
+		if s.{{ $name }} == nil {
+			return v
+		}
+		return *s.{{ $name }}
+	{{ else -}}
+		return s.{{ $name }}
+	{{ end -}}
+}
+{{- end }}
 
 {{ end }}
 {{ end }}
